@@ -279,7 +279,7 @@ content_for_retrieval  := Container(code: ByteList(32768))
 
 As each new block is added to the chain, the updated state from that block must be gossiped into
 the network. In short, every trie node that is created or modified MUST be gossiped into the network,
-together with it's proof.
+together with its proof.
 
 ### Terminology
 
