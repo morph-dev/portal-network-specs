@@ -16,8 +16,10 @@ The Execution Head-MPT State Network is a
 [Portal Wire Protocol](../portal-wire-protocol.md) to establish an overlay network on top of the
 [Discovery v5](https://github.com/ethereum/devp2p/blob/master/discv5/discv5-wire.md) protocol.
 
+Nodes are responsible for storing fixed state subtree, across all 256 recent blocks.
+
 Nodes are expected to have access to the latest 256 block headers, which they will use to validate
-content and handle re-orgs. This [History](../history/history-network.md) and
+content and handle re-orgs. The [History](../history/history-network.md) and
 [Beacon](../beacon-chain/beacon-network.md) networks can be used for this purpose, but
 implementations can use other out-of-protocol solutions as well.
 
@@ -58,7 +60,7 @@ length.
 
 ### Content ID Derivation Function
 
-TODO: Consider chaning name to Content Path
+TODO: Consider changing name to Content Path
 
 The content id is derived only from content's trie path (and contract's address in the case of the
 contracts's trie node). It's primary use case is in figuring out which nodes on the network should
@@ -110,6 +112,8 @@ The network includes one additional piece of node state that should be tracked: 
 value is a 256 bit integer and represents the data that a node is "interested" in. The value may
 fluctuate as the contents of local key-value store changes.
 
+TODO: consider making radius power of two
+
 A node should track their own radius value and provide this value in all `Ping` or `Pong`
 messages it sends to other nodes. A node is expected to maintain `data_radius` information for each
 node in its local routing table.
@@ -129,15 +133,59 @@ TODO: maybe adjust this for contract's storage trie
 
 ### Data Types
 
-<!--
 
-This section should contain individual sections defining each type of content
-supported by this network.  Each content type defined should have a definition
-which includes how the content is encoded and the encoding for the
-corresponding Content Key
+#### Helper Data Types
 
--->
+The helper types `Nibbles`, `AddressHash`, `TrieNode`, and `TrieProof` are defined the same way as in
+[Execution State Network](state-network.md#helper-data-types).
+
+#### Account Trie Node
+
+This data type represent a node from the account trie.
+
+```
+selector            := 0x30
+account_trie_node   := Container(path: Nibbles, block_hash: Bytes32)
+
+content_key         := selector + SSZ.serialize(account_trie_node)
+content_value       := Container(proof: TrieProof)
+
+content_id(account_trie_node) :=
+    return account_trie_node.path
+```
+
+The last trie node in the `proof` MUST correspond to the trie path from the content key.
+
+#### Contract Trie Node
+
+This data type represent a node from the contracts's storage trie.
+
+```
+selector            := 0x31
+account_trie_node   := Container(path: Nibbles, address_hash: AddressHash, block_hash: Bytes32)
+
+content_key         := selector + SSZ.serialize(account_trie_node)
+content_value       := Container(storage_proof: TrieProof, account_proof: TrieProof)
+
+content_id(account_trie_node) :=
+    bits = account_trie_node.path.length
+    return account_trie_node.path XOR AddressHash[..bits]
+```
+
+The last trie node in the `storage_proof` MUST correspond to the trie path from the content key,
+inside contract's storage trie.
+
+#### Contract Bytecode
+
+TODO
 
 ### Algorithms
 
-<!-- This section should contain definitions of any protocol specific algorithms -->
+#### Storage layout
+
+Clients should store entire subtree that is "close" to their node.id. They should also keep track
+of all trie nodes from the root of the trie to the root of their respective subtree.
+
+Clients should group and store all trie nodes that correspond to the same trie path. This way, they
+can keep track of which version of these nodes are still present in the most recent 256 blocks, and
+can prune older content.
